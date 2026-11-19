@@ -24,7 +24,7 @@ resource "helm_release" "tfe" {
   version    = "2.1.1"
   namespace  = kubernetes_namespace.tfe.metadata[0].name
   timeout    = 1200
-  wait       = true
+  wait       = false
 
   values = [
     local.infra.helm_overrides_values,
