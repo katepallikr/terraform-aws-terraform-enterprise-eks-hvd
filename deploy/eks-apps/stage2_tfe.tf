@@ -126,3 +126,15 @@ output "debug_tfe_iact_config" {
     }
   }
 }
+      env = {
+        secretRefs = [{ name = kubernetes_secret.tfe_secrets.metadata[0].name }]
+        variables = {
+          TFE_IACT_SUBNETS    = "10.0.0.0/16,192.136.210.31/32"
+          TFE_IACT_TIME_LIMIT = "120"
+        }
+      }
+      pod = {
+        annotations = {
+          "config-rev" = "2" # bump to force a pod restart
+        }
+      }
