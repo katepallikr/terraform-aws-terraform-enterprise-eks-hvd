@@ -57,6 +57,7 @@ resource "kubernetes_secret" "dynakube" {
   }
 }
 
+
 # --- DynaKube: cluster, node and pod metrics ---
 resource "kubernetes_manifest" "dynakube" {
   count = var.deploy_dynakube ? 1 : 0
@@ -78,9 +79,10 @@ resource "kubernetes_manifest" "dynakube" {
       }
       activeGate = {
         capabilities = ["routing", "kubernetes-monitoring"]
-        resources = {
+       resources = {
           requests = { cpu = "500m", memory = "512Mi" }
-          limits   = { cpu = "1000m", memory = "1.5Gi" }
+          limits   = { cpu = "1", memory = "1536Mi" }
+        }
         }
       }
     }
