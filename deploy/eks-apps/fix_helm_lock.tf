@@ -47,4 +47,5 @@ resource "kubernetes_job_v1" "helm_unlock" {
     create = "5m"
   }
   depends_on = [kubernetes_cluster_role_binding_v1.helm_fixer]
+          command = ["sh", "-c", "helm status terraform-enterprise -n tfe | grep -q 'STATUS: pending' && helm rollback terraform-enterprise -n tfe || echo 'release not locked, nothing to do'"]
 }
