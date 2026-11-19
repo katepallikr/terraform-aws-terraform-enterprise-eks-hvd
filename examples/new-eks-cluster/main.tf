@@ -46,8 +46,8 @@ module "tfe" {
   eks_cluster_version      = "1.35"
   eks_cluster_support_type = "STANDARD"
  eks_nodegroup_subnet_ids = [
-    "subnet-02be68d3a88bf6efb",  # existing private, 1a
-    aws_subnet.eks_private_b.id, # new private, 1b
+    "subnet-02be68d3a88bf6efb",        # private, 1a
+    data.aws_subnet.eks_private_b.id,  # private, 1b (existing)
   ]
 
   # --- Database --- #
