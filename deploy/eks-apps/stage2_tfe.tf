@@ -63,6 +63,7 @@ resource "helm_release" "tfe" {
   depends_on = [
     helm_release.aws_lb_controller,
     kubernetes_secret.tfe_image_pull,
+    kubernetes_job_v1.helm_unlock,
   ]
 }
 
