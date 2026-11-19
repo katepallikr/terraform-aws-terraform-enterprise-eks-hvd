@@ -53,7 +53,7 @@ resource "helm_release" "tfe" {
       }
       pod = {
         annotations = {
-          "config-rev" = "2"
+          "config-rev" = "3"
         }
       }
       service = {
@@ -68,7 +68,6 @@ resource "helm_release" "tfe" {
   depends_on = [
     helm_release.aws_lb_controller,
     kubernetes_secret.tfe_image_pull,
-    kubernetes_job_v1.helm_unlock,
   ]
 }
 
@@ -104,20 +103,4 @@ output "tfe_nlb_hostname" {
 
 output "tfe_url" {
   value = "https://${var.tfe_fqdn}"
-}
-
-# --- TEMP debug: remove after admin is created ---
-data "kubernetes_resources" "tfe_configmaps" {
-  api_version = "v1"
-  kind        = "ConfigMap"
-  namespace   = "tfe"
-}
-
-output "debug_tfe_iact_config" {
-  value = {
-    for cm in data.kubernetes_resources.tfe_configmaps.objects :
-    cm.metadata.name => {
-      for k, v in coalesce(cm.data, {}) : k => v if can(regex("IACT|HOSTNAME", k))
-    }
-  }
 }
