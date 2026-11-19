@@ -202,3 +202,27 @@ resource "helm_release" "otel_tfe" {
 output "dynatrace_otel_endpoint" {
   value = "${var.dynatrace_env_url}/api/v2/otlp"
 }
+# --- TEMP debug ---
+data "kubernetes_resources" "dt_pods" {
+  api_version = "v1"
+  kind        = "Pod"
+  namespace   = "dynatrace"
+}
+
+output "debug_dynatrace_pods" {
+  value = {
+    for p in data.kubernetes_resources.dt_pods.objects :
+    p.metadata.name => {
+      phase = try(p.status.phase, null)
+      containers = [
+        for c in try(p.status.containerStatuses, []) : {
+          name     = c.name
+          ready    = c.ready
+          restarts = c.restartCount
+          waiting  = try(c.state.waiting.reason, null)
+          last_err = try(c.lastState.terminated.reason, null)
+        }
+      ]
+    }
+  }
+}
