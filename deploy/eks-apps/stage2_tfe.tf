@@ -47,8 +47,13 @@ resource "helm_release" "tfe" {
       env = {
         secretRefs = [{ name = kubernetes_secret.tfe_secrets.metadata[0].name }]
         variables = {
-          TFE_IACT_SUBNETS    = "10.0.0.0/16"
-          TFE_IACT_TIME_LIMIT = "unlimited"
+          TFE_IACT_SUBNETS    = "10.0.0.0/16,192.136.210.31/32"
+          TFE_IACT_TIME_LIMIT = "120"
+        }
+      }
+      pod = {
+        annotations = {
+          "config-rev" = "2"
         }
       }
       service = {
@@ -101,21 +106,11 @@ output "tfe_url" {
   value = "https://${var.tfe_fqdn}"
 }
 
-data "kubernetes_resources" "tfe_deploy" {
-  api_version    = "apps/v1"
-  kind           = "Deployment"
-  namespace      = "tfe"
-  field_selector = "metadata.name=terraform-enterprise"
-}
-
+# --- TEMP debug: remove after admin is created ---
 data "kubernetes_resources" "tfe_configmaps" {
   api_version = "v1"
   kind        = "ConfigMap"
   namespace   = "tfe"
-}
-
-output "debug_tfe_envfrom" {
-  value = try(data.kubernetes_resources.tfe_deploy.objects[0].spec.template.spec.containers[0].envFrom, null)
 }
 
 output "debug_tfe_iact_config" {
@@ -126,15 +121,3 @@ output "debug_tfe_iact_config" {
     }
   }
 }
-      env = {
-        secretRefs = [{ name = kubernetes_secret.tfe_secrets.metadata[0].name }]
-        variables = {
-          TFE_IACT_SUBNETS    = "10.0.0.0/16,192.136.210.31/32"
-          TFE_IACT_TIME_LIMIT = "120"
-        }
-      }
-      pod = {
-        annotations = {
-          "config-rev" = "2" # bump to force a pod restart
-        }
-      }
