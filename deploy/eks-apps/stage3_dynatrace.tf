@@ -4,6 +4,11 @@
 #   Apply 2: deploy_dynakube = true   -> DynaKube (needs operator CRDs)
 ############################################
 
+import {
+  to = helm_release.otel_tfe
+  id = "dynatrace/otel-tfe-metrics"
+}
+
 variable "dynatrace_env_url" {
   type        = string
   description = "e.g. https://abc12345.live.dynatrace.com (no trailing slash)"
@@ -105,6 +110,8 @@ resource "helm_release" "otel_tfe" {
   namespace  = kubernetes_namespace.dynatrace.metadata[0].name
   wait       = true
   timeout    = 600
+  atomic          = true
+  cleanup_on_fail = true
 
   values = [yamlencode({
     mode = "deployment"
