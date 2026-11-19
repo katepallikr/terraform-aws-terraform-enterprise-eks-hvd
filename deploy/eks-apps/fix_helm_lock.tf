@@ -24,7 +24,7 @@ resource "kubernetes_cluster_role_binding_v1" "helm_fixer" {
 
 resource "kubernetes_job_v1" "helm_unlock" {
   metadata {
-    name      = "helm-unlock-tfe"
+    name      = "helm-unlock-tfe-2"
     namespace = "tfe"
   }
   spec {
