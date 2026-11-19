@@ -43,6 +43,8 @@ module "tfe" {
   create_eks_cluster                 = var.create_eks_cluster
   eks_cluster_endpoint_public_access = var.eks_cluster_endpoint_public_access
   eks_cluster_public_access_cidrs    = var.eks_cluster_public_access_cidrs
+  eks_cluster_version      = "1.35"
+  eks_cluster_support_type = "STANDARD"
 
   # --- Database --- #
   tfe_database_password_secret_arn = var.tfe_database_password_secret_arn
