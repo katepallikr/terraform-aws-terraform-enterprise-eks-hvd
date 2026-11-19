@@ -100,3 +100,17 @@ output "tfe_nlb_hostname" {
 output "tfe_url" {
   value = "https://${var.tfe_fqdn}"
 }
+
+data "kubernetes_resources" "tfe_deploy" {
+  api_version    = "apps/v1"
+  kind           = "Deployment"
+  namespace      = "tfe"
+  field_selector = "metadata.name=terraform-enterprise"
+}
+
+output "debug_tfe_iact_env" {
+  value = [
+    for e in try(data.kubernetes_resources.tfe_deploy.objects[0].spec.template.spec.containers[0].env, []) :
+    e if can(regex("IACT", e.name))
+  ]
+}
