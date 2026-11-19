@@ -53,3 +53,65 @@ module "tfe" {
   # --- Redis --- #
   tfe_redis_password_secret_arn = var.tfe_redis_password_secret_arn
 }
+
+############################################
+# TEMP DEBUG - remove after diagnosis
+############################################
+data "aws_vpc" "debug" {
+  id = var.vpc_id
+}
+
+data "aws_route_tables" "debug_explicit" {
+  for_each = toset(var.eks_subnet_ids)
+  vpc_id   = var.vpc_id
+  filter {
+    name   = "association.subnet-id"
+    values = [each.value]
+  }
+}
+
+data "aws_route_table" "debug_main" {
+  route_table_id = data.aws_vpc.debug.main_route_table_id
+}
+
+data "aws_route_table" "debug_effective" {
+  for_each       = toset(var.eks_subnet_ids)
+  route_table_id = length(data.aws_route_tables.debug_explicit[each.value].ids) > 0 ? data.aws_route_tables.debug_explicit[each.value].ids[0] : data.aws_vpc.debug.main_route_table_id
+}
+
+data "aws_nat_gateways" "debug" {
+  vpc_id = var.vpc_id
+}
+
+data "aws_subnet" "debug" {
+  for_each = toset(var.eks_subnet_ids)
+  id       = each.value
+}
+
+output "debug_vpc_cidr" {
+  value = data.aws_vpc.debug.cidr_block
+}
+
+output "debug_default_route_per_subnet" {
+  value = {
+    for s, rt in data.aws_route_table.debug_effective : s => {
+      route_table = rt.id
+      uses_main   = length(data.aws_route_tables.debug_explicit[s].ids) == 0
+      default     = [for r in rt.routes : { nat = r.nat_gateway_id, igw = r.gateway_id } if r.cidr_block == "0.0.0.0/0"]
+    }
+  }
+}
+
+output "debug_nat_gateways" {
+  value = data.aws_nat_gateways.debug.ids
+}
+
+output "debug_subnets" {
+  value = {
+    for s, sn in data.aws_subnet.debug : s => {
+      az               = sn.availability_zone
+      cidr             = sn.cidr_block
+      public_ip_launch = sn.map_public_ip_on_launch
+    }
+  }
+}
