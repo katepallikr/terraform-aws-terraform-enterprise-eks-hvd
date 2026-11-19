@@ -808,3 +808,20 @@ variable "tfe_cost_estimation_iam_enabled" {
   description = "Boolean to add AWS pricing actions to TFE IAM role for service account (IRSA). Only implemented when `create_tfe_eks_irsa` is `true`."
   default     = true
 }
+
+variable "eks_cluster_version" {
+  type        = string
+  description = "Kubernetes version for the EKS cluster. Use a version in EKS standard support."
+  default     = "1.35"
+}
+
+variable "eks_cluster_support_type" {
+  type        = string
+  description = "EKS upgrade policy support type: STANDARD or EXTENDED."
+  default     = "STANDARD"
+
+  validation {
+    condition     = contains(["STANDARD", "EXTENDED"], var.eks_cluster_support_type)
+    error_message = "Must be STANDARD or EXTENDED."
+  }
+}
