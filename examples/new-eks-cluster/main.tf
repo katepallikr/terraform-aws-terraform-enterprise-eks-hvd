@@ -57,19 +57,20 @@ module "tfe" {
   # --- Redis --- #
   tfe_redis_password_secret_arn = var.tfe_redis_password_secret_arn
 }
-resource "aws_subnet" "eks_private_b" {
-  vpc_id                  = var.vpc_id
-  cidr_block              = "10.0.11.0/24"
-  availability_zone       = "us-east-1b"
-  map_public_ip_on_launch = false
-
-  tags = {
-    Name                              = "${var.friendly_name_prefix}-eks-private-b"
-    "kubernetes.io/role/internal-elb" = "1"
-  }
+data "aws_subnet" "eks_private_b" {
+  vpc_id     = var.vpc_id
+  cidr_block = "10.0.11.0/24"
 }
 
-resource "aws_route_table_association" "eks_private_b" {
-  subnet_id      = aws_subnet.eks_private_b.id
-  route_table_id = "rtb-09550ce556deb4936" # existing private RT -> nat-0c712752f8650d05e
+data "aws_route_table" "eks_private_b" {
+  subnet_id = data.aws_subnet.eks_private_b.id
+}
+
+output "check_private_b" {
+  value = {
+    id        = data.aws_subnet.eks_private_b.id
+    az        = data.aws_subnet.eks_private_b.availability_zone
+    public_ip = data.aws_subnet.eks_private_b.map_public_ip_on_launch
+    default   = [for r in data.aws_route_table.eks_private_b.routes : { nat = r.nat_gateway_id, igw = r.gateway_id } if r.cidr_block == "0.0.0.0/0"]
+  }
 }
