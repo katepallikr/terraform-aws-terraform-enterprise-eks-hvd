@@ -11,7 +11,8 @@ resource "aws_eks_node_group" "tfe" {
   cluster_name    = aws_eks_cluster.tfe[0].name
   node_group_name = "${var.friendly_name_prefix}-${var.eks_nodegroup_name}"
   node_role_arn   = aws_iam_role.tfe_eks_nodegroup[0].arn
-  subnet_ids      = var.eks_subnet_ids
+#  subnet_ids      = var.eks_subnet_ids
+  subnet_ids      = var.eks_nodegroup_subnet_ids != null ? var.eks_nodegroup_subnet_ids : var.eks_subnet_ids
   capacity_type   = "ON_DEMAND"
   instance_types  = [var.eks_nodegroup_instance_type]
   ami_type        = var.eks_nodegroup_ami_type
