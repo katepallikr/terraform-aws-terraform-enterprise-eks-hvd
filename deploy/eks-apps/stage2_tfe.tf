@@ -108,9 +108,21 @@ data "kubernetes_resources" "tfe_deploy" {
   field_selector = "metadata.name=terraform-enterprise"
 }
 
-output "debug_tfe_iact_env" {
-  value = [
-    for e in try(data.kubernetes_resources.tfe_deploy.objects[0].spec.template.spec.containers[0].env, []) :
-    e if can(regex("IACT", e.name))
-  ]
+data "kubernetes_resources" "tfe_configmaps" {
+  api_version = "v1"
+  kind        = "ConfigMap"
+  namespace   = "tfe"
+}
+
+output "debug_tfe_envfrom" {
+  value = try(data.kubernetes_resources.tfe_deploy.objects[0].spec.template.spec.containers[0].envFrom, null)
+}
+
+output "debug_tfe_iact_config" {
+  value = {
+    for cm in data.kubernetes_resources.tfe_configmaps.objects :
+    cm.metadata.name => {
+      for k, v in coalesce(cm.data, {}) : k => v if can(regex("IACT|HOSTNAME", k))
+    }
+  }
 }
