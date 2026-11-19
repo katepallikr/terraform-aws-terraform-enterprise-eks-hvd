@@ -94,10 +94,10 @@ output "tfe_nlb_hostname" {
 output "tfe_url" {
   value = "https://${var.tfe_fqdn}"
 }
-      env = {
-        secretRefs = [{ name = kubernetes_secret.tfe_secrets.metadata[0].name }]
-        variables = {
-          TFE_IACT_SUBNETS    = "10.0.0.0/16"
-          TFE_IACT_TIME_LIMIT = "unlimited"
+env = {
+    secretRefs = [{ name = kubernetes_secret.tfe_secrets.metadata[0].name }]
+    variables = {
+    TFE_IACT_SUBNETS    = "10.0.0.0/16"
+    TFE_IACT_TIME_LIMIT = "unlimited"
         }
       }
