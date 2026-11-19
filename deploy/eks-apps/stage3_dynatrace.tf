@@ -1,13 +1,6 @@
 ############################################
 # Stage 3 - Dynatrace
-#   Apply 1: deploy_dynakube = false  -> operator, secrets, OTel collector
-#   Apply 2: deploy_dynakube = true   -> DynaKube (needs operator CRDs)
 ############################################
-
-import {
-  to = helm_release.otel_tfe
-  id = "dynatrace/otel-tfe-metrics"
-}
 
 variable "dynatrace_env_url" {
   type        = string
@@ -37,12 +30,14 @@ resource "kubernetes_namespace" "dynatrace" {
 
 # --- Dynatrace Operator ---
 resource "helm_release" "dynatrace_operator" {
-  name       = "dynatrace-operator"
-  repository = "oci://public.ecr.aws/dynatrace"
-  chart      = "dynatrace-operator"
-  namespace  = kubernetes_namespace.dynatrace.metadata[0].name
-  wait       = true
-  timeout    = 600
+  name            = "dynatrace-operator"
+  repository      = "oci://public.ecr.aws/dynatrace"
+  chart           = "dynatrace-operator"
+  namespace       = kubernetes_namespace.dynatrace.metadata[0].name
+  wait            = true
+  timeout         = 600
+  atomic          = true
+  cleanup_on_fail = true
 }
 
 # Secret name must match the DynaKube name
@@ -56,7 +51,6 @@ resource "kubernetes_secret" "dynakube" {
     dataIngestToken = var.dynatrace_data_ingest_token
   }
 }
-
 
 # --- DynaKube: cluster, node and pod metrics ---
 resource "kubernetes_manifest" "dynakube" {
@@ -79,10 +73,9 @@ resource "kubernetes_manifest" "dynakube" {
       }
       activeGate = {
         capabilities = ["routing", "kubernetes-monitoring"]
-       resources = {
+        resources = {
           requests = { cpu = "500m", memory = "512Mi" }
           limits   = { cpu = "1", memory = "1536Mi" }
-        }
         }
       }
     }
@@ -106,12 +99,12 @@ resource "kubernetes_secret" "otel_dt" {
 }
 
 resource "helm_release" "otel_tfe" {
-  name       = "otel-tfe-metrics"
-  repository = "https://open-telemetry.github.io/opentelemetry-helm-charts"
-  chart      = "opentelemetry-collector"
-  namespace  = kubernetes_namespace.dynatrace.metadata[0].name
-  wait       = true
-  timeout    = 600
+  name            = "otel-tfe-metrics"
+  repository      = "https://open-telemetry.github.io/opentelemetry-helm-charts"
+  chart           = "opentelemetry-collector"
+  namespace       = kubernetes_namespace.dynatrace.metadata[0].name
+  wait            = true
+  timeout         = 600
   atomic          = true
   cleanup_on_fail = true
 
@@ -159,13 +152,11 @@ resource "helm_release" "otel_tfe" {
                 }
               }]
               relabel_configs = [
-                # one target per TFE pod: anchor on the app's 8443 port
                 {
                   source_labels = ["__meta_kubernetes_pod_container_port_number"]
                   regex         = "8443"
                   action        = "keep"
                 },
-                # scrape the metrics port instead
                 {
                   source_labels = ["__meta_kubernetes_pod_ip"]
                   target_label  = "__address__"
@@ -211,6 +202,7 @@ resource "helm_release" "otel_tfe" {
 output "dynatrace_otel_endpoint" {
   value = "${var.dynatrace_env_url}/api/v2/otlp"
 }
+
 # --- TEMP debug ---
 data "kubernetes_resources" "dt_pods" {
   api_version = "v1"
@@ -229,7 +221,6 @@ output "debug_dynatrace_pods" {
           ready    = c.ready
           restarts = c.restartCount
           waiting  = try(c.state.waiting.reason, null)
-          last_err = try(c.lastState.terminated.reason, null)
         }
       ]
     }
