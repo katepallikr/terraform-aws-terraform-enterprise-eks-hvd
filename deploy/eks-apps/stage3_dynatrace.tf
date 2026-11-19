@@ -160,7 +160,7 @@ resource "helm_release" "otel_tfe" {
                 {
                   source_labels = ["__meta_kubernetes_pod_ip"]
                   target_label  = "__address__"
-                  replacement   = "$${1}:9090"
+                  replacement   = "$$1:9090"
                 },
                 {
                   source_labels = ["__meta_kubernetes_pod_name"]
