@@ -825,3 +825,8 @@ variable "eks_cluster_support_type" {
     error_message = "Must be STANDARD or EXTENDED."
   }
 }
+variable "eks_nodegroup_subnet_ids" {
+  type        = list(string)
+  description = "Subnet IDs for the EKS node group. Must be private subnets with egress (NAT). Defaults to `eks_subnet_ids` when null."
+  default     = null
+}
