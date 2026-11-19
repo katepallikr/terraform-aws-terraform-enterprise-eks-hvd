@@ -9,7 +9,11 @@ resource "aws_eks_cluster" "tfe" {
 
   name     = "${var.friendly_name_prefix}-${var.eks_cluster_name}"
   role_arn = aws_iam_role.eks_cluster[0].arn
+  version = var.eks_cluster_version
 
+  upgrade_policy {
+    support_type = var.eks_cluster_support_type
+  }
   access_config {
     authentication_mode                         = var.eks_cluster_authentication_mode
     bootstrap_cluster_creator_admin_permissions = false
