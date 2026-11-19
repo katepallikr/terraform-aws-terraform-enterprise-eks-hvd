@@ -21,14 +21,15 @@ resource "helm_release" "tfe" {
   name       = "terraform-enterprise"
   repository = "https://helm.releases.hashicorp.com"
   chart      = "terraform-enterprise"
+  version    = "2.1.1"
   namespace  = kubernetes_namespace.tfe.metadata[0].name
   timeout    = 1200
   wait       = true
 
   values = [
     local.infra.helm_overrides_values, # module-generated base
-    yamlencode({                       # fills placeholders + our changes
-      replicaCount = 1                 # sandbox
+    yamlencode({
+      replicaCount = 1
       image = {
         tag = var.tfe_image_tag
       }
@@ -45,6 +46,10 @@ resource "helm_release" "tfe" {
       }
       env = {
         secretRefs = [{ name = kubernetes_secret.tfe_secrets.metadata[0].name }]
+        variables = {
+          TFE_IACT_SUBNETS    = "10.0.0.0/16"
+          TFE_IACT_TIME_LIMIT = "unlimited"
+        }
       }
       service = {
         annotations = {
@@ -54,9 +59,8 @@ resource "helm_release" "tfe" {
       }
     })
   ]
-
   depends_on = [
-    helm_release.aws_lb_controller, # controller must exist to build the NLB
+    helm_release.aws_lb_controller,
     kubernetes_secret.tfe_image_pull,
   ]
 }
