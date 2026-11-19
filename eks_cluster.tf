@@ -73,9 +73,9 @@ resource "aws_eks_access_policy_association" "tfe_cluster_creator" {
   policy_arn    = "arn:${data.aws_partition.current.partition}:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
   principal_arn = data.aws_iam_session_context.current.issuer_arn
 
-  # depends_on = [
-  #   aws_eks_access_entry.tfe_cluster_creator,
-  # ]
+   depends_on = [
+     aws_eks_access_entry.tfe_cluster_creator,
+   ]
 }
 
 #------------------------------------------------------------------------------
