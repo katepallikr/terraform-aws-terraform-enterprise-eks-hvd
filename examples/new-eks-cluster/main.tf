@@ -74,3 +74,69 @@ output "check_private_b" {
     default   = [for r in data.aws_route_table.eks_private_b.routes : { nat = r.nat_gateway_id, igw = r.gateway_id } if r.cidr_block == "0.0.0.0/0"]
   }
 }
+
+variable "tfc_agent_token" {
+  type      = string
+  sensitive = true
+}
+
+data "aws_ssm_parameter" "al2023" {
+  name = "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
+}
+
+resource "aws_security_group" "tfc_agent" {
+  name_prefix = "${var.friendly_name_prefix}-tfc-agent-"
+  vpc_id      = var.vpc_id
+  description = "HCP Terraform agent - egress only"
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+# let the agent reach the private EKS API
+resource "aws_security_group_rule" "eks_api_from_tfc_agent" {
+  type                     = "ingress"
+  from_port                = 443
+  to_port                  = 443
+  protocol                 = "tcp"
+  security_group_id        = module.tfe.eks_cluster_security_group_id
+  source_security_group_id = aws_security_group.tfc_agent.id
+  description              = "EKS API from HCP Terraform agent"
+}
+
+resource "aws_instance" "tfc_agent" {
+  ami                         = data.aws_ssm_parameter.al2023.value
+  instance_type               = "t3.medium"
+  subnet_id                   = "subnet-02be68d3a88bf6efb" # private, NAT
+  vpc_security_group_ids      = [aws_security_group.tfc_agent.id]
+  associate_public_ip_address = false
+
+  metadata_options {
+    http_tokens = "required"
+  }
+
+  root_block_device {
+    volume_size = 30
+    encrypted   = true
+  }
+
+  user_data_replace_on_change = true
+  user_data = <<-EOF
+    #!/bin/bash
+    set -euxo pipefail
+    dnf install -y docker
+    systemctl enable --now docker
+    docker run -d --restart always --name tfc-agent \
+      -e TFC_AGENT_TOKEN='${var.tfc_agent_token}' \
+      -e TFC_AGENT_NAME='eks-vpc-agent-1' \
+      hashicorp/tfc-agent:latest
+  EOF
+
+  tags = {
+    Name = "${var.friendly_name_prefix}-tfc-agent"
+  }
+}
