@@ -69,7 +69,11 @@ resource "kubernetes_manifest" "dynakube" {
         enabled = true
       }
       oneAgent = {
-        hostMonitoring = {}
+        hostMonitoring = {
+          nodeSelector = {
+            "kubernetes.io/os" = "linux"
+          }
+        }
       }
       activeGate = {
         capabilities = ["routing", "kubernetes-monitoring"]
