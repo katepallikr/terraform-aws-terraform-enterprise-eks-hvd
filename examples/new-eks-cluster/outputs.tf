@@ -70,6 +70,5 @@ output "tfe_redis_password_base64" {
 }
 
 output "helm_overrides_values" {
-  description = "Rendered TFE Helm overrides (use instead of local_file on remote runs)."
-  value       = templatefile("${path.module}/templates/helm_overrides_values.yaml.tpl", local.helm_overrides_values)
+  value = module.tfe.helm_overrides_values
 }
