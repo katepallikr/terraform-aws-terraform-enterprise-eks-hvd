@@ -74,8 +74,8 @@ resource "kubernetes_manifest" "dynakube" {
       activeGate = {
         capabilities = ["routing", "kubernetes-monitoring"]
         resources = {
-          requests = { cpu = "500m", memory = "512Mi" }
-          limits   = { cpu = "1", memory = "1536Mi" }
+          requests = { cpu = "500m", memory = "1Gi" }
+          limits   = { cpu = "1", memory = "3Gi" }
         }
       }
     }
