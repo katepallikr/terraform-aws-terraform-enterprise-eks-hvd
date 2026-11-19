@@ -4,7 +4,7 @@ variable "tfe_image_tag" {
 
 variable "tfe_lb_public_subnet_ids" {
   type    = list(string)
-  default = ["subnet-03ec7bbcd68f0bb18", "subnet-0d900bf55d5c4c4d9"] # public, IGW
+  default = ["subnet-03ec7bbcd68f0bb18", "subnet-0d900bf55d5c4c4d9"]
 }
 
 variable "create_dns_record" {
@@ -27,7 +27,7 @@ resource "helm_release" "tfe" {
   wait       = true
 
   values = [
-    local.infra.helm_overrides_values, # module-generated base
+    local.infra.helm_overrides_values,
     yamlencode({
       replicaCount = 1
       image = {
@@ -59,6 +59,7 @@ resource "helm_release" "tfe" {
       }
     })
   ]
+
   depends_on = [
     helm_release.aws_lb_controller,
     kubernetes_secret.tfe_image_pull,
@@ -98,10 +99,3 @@ output "tfe_nlb_hostname" {
 output "tfe_url" {
   value = "https://${var.tfe_fqdn}"
 }
-env = {
-    secretRefs = [{ name = kubernetes_secret.tfe_secrets.metadata[0].name }]
-    variables = {
-    TFE_IACT_SUBNETS    = "10.0.0.0/16"
-    TFE_IACT_TIME_LIMIT = "unlimited"
-        }
-      }
