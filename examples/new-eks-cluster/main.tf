@@ -14,6 +14,9 @@ provider "aws" {
   region = var.region
 }
 
+data "aws_nat_gateway" "egress" {
+  id = "nat-0c712752f8650d05e"
+}
 module "tfe" {
   source = "../.."
 
