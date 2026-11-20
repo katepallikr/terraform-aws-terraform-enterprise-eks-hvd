@@ -30,7 +30,10 @@ module "tfe" {
   eks_subnet_ids                       = var.eks_subnet_ids
   rds_subnet_ids                       = var.rds_subnet_ids
   redis_subnet_ids                     = var.redis_subnet_ids
-  cidr_allow_ingress_tfe_443           = var.cidr_allow_ingress_tfe_443
+    cidr_allow_ingress_tfe_443 = concat(
+    var.cidr_allow_ingress_tfe_443,
+    ["${data.aws_nat_gateway.egress.public_ip}/32"],
+  )
   cidr_allow_ingress_tfe_metrics_http  = var.cidr_allow_ingress_tfe_metrics_http
   cidr_allow_ingress_tfe_metrics_https = var.cidr_allow_ingress_tfe_metrics_https
 
