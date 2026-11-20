@@ -30,6 +30,10 @@ data "aws_eks_cluster_auth" "this" {
   name = local.cluster_name
 }
 
+data "aws_nat_gateway" "egress" {
+  id = "nat-0c712752f8650d05e"
+}
+
 provider "kubernetes" {
   host                   = data.aws_eks_cluster.this.endpoint
   cluster_ca_certificate = base64decode(data.aws_eks_cluster.this.certificate_authority[0].data)
