@@ -139,4 +139,8 @@ resource "aws_instance" "tfc_agent" {
   tags = {
     Name = "${var.friendly_name_prefix}-tfc-agent"
   }
+
+  lifecycle {
+    ignore_changes = [ami]
+  }
 }
