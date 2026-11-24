@@ -133,7 +133,17 @@ resource "helm_release" "otel_tfe" {
         }
       }
 
-      processors = {
+            processors = {
+        k8sattributes = {
+          auth_type   = "serviceAccount"
+          passthrough = false
+          extract = {
+            metadata = ["k8s.namespace.name", "k8s.pod.name", "k8s.deployment.name", "k8s.node.name"]
+          }
+          pod_association = [
+            { sources = [{ from = "connection" }] },
+          ]
+        }
         cumulativetodelta = {}
         batch             = {}
       }
@@ -145,6 +155,11 @@ resource "helm_release" "otel_tfe" {
           metrics = {
             receivers  = ["prometheus", "k8s_cluster"]
             processors = ["cumulativetodelta", "batch"]
+            exporters  = ["otlphttp"]
+          }
+          "metrics/agents" = {
+            receivers  = ["otlp"]
+            processors = ["k8sattributes", "cumulativetodelta", "batch"]
             exporters  = ["otlphttp"]
           }
         }
