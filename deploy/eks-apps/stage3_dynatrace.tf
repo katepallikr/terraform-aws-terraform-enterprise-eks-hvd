@@ -1,7 +1,8 @@
 ############################################
-# Stage 3 - Observability via OpenTelemetry only (no OneAgent / ActiveGate)
-#   otel_tfe  (Deployment, 1 replica): TFE /metrics scrape + k8s_cluster
-#   otel_node (DaemonSet, per node):   kubeletstats + k8sattributes
+# Stage 3 - Observability via OpenTelemetry only
+#   otel_tfe  (Deployment): TFE /metrics scrape, k8s_cluster, agent OTLP
+#   otel_node (DaemonSet):  kubeletstats per node
+#   Both: memory_limiter + self-monitoring
 ############################################
 
 variable "dynatrace_env_url" {
@@ -12,6 +13,11 @@ variable "dynatrace_env_url" {
 variable "dynatrace_data_ingest_token" {
   type      = string
   sensitive = true
+}
+
+variable "cluster_collector_replicas" {
+  type    = number
+  default = 1 # set 0 only for the failure test
 }
 
 resource "kubernetes_namespace" "dynatrace" {
@@ -44,10 +50,35 @@ locals {
       secretKeyRef = { name = "otel-dynatrace", key = "token" }
     }
   }
+
+  memory_limiter = {
+    check_interval         = "1s"
+    limit_percentage       = 80
+    spike_limit_percentage = 25
+  }
+
+  # Collector's own metrics -> its own OTLP receiver -> Dynatrace
+  self_telemetry = {
+    metrics = {
+      level   = "detailed"
+      address = null # drop the chart's legacy setting; readers replace it
+      readers = [{
+        periodic = {
+          interval = 30000
+          exporter = {
+            otlp = {
+              protocol = "http/protobuf"
+              endpoint = "http://$${env:MY_POD_IP}:4318"
+            }
+          }
+        }
+      }]
+    }
+  }
 }
 
 # ---------------------------------------------------------------
-# Cluster collector: TFE app metrics + Kubernetes object state
+# Cluster collector
 # ---------------------------------------------------------------
 resource "helm_release" "otel_tfe" {
   name            = "otel-tfe-metrics"
@@ -61,8 +92,13 @@ resource "helm_release" "otel_tfe" {
 
   values = [yamlencode({
     mode         = "deployment"
-    replicaCount = 1 # k8s_cluster must run as a single instance
+    replicaCount = var.cluster_collector_replicas
     image        = { repository = "otel/opentelemetry-collector-contrib" }
+
+    resources = {
+      requests = { cpu = "100m", memory = "256Mi" }
+      limits   = { memory = "512Mi" }
+    }
 
     clusterRole = {
       create = true
@@ -126,14 +162,15 @@ resource "helm_release" "otel_tfe" {
         }
 
         k8s_cluster = {
-          auth_type                  = "serviceAccount"
-          collection_interval        = "30s"
-          node_conditions_to_report  = ["Ready", "MemoryPressure", "DiskPressure"]
+          auth_type                   = "serviceAccount"
+          collection_interval         = "30s"
+          node_conditions_to_report   = ["Ready", "MemoryPressure", "DiskPressure"]
           allocatable_types_to_report = ["cpu", "memory"]
         }
       }
 
-            processors = {
+      processors = {
+        memory_limiter = local.memory_limiter
         k8sattributes = {
           auth_type   = "serviceAccount"
           passthrough = false
@@ -151,15 +188,16 @@ resource "helm_release" "otel_tfe" {
       exporters = local.dt_exporter
 
       service = {
+        telemetry = local.self_telemetry
         pipelines = {
           metrics = {
             receivers  = ["prometheus", "k8s_cluster"]
-            processors = ["cumulativetodelta", "batch"]
+            processors = ["memory_limiter", "cumulativetodelta", "batch"]
             exporters  = ["otlphttp"]
           }
           "metrics/agents" = {
-            receivers  = ["otlp"]
-            processors = ["k8sattributes", "cumulativetodelta", "batch"]
+            receivers  = ["otlp"] # tfc-agents + this collector's own metrics
+            processors = ["memory_limiter", "k8sattributes", "cumulativetodelta", "batch"]
             exporters  = ["otlphttp"]
           }
         }
@@ -171,7 +209,7 @@ resource "helm_release" "otel_tfe" {
 }
 
 # ---------------------------------------------------------------
-# Node collector: per-node kubelet stats (CPU/memory/net/fs)
+# Node collector
 # ---------------------------------------------------------------
 resource "helm_release" "otel_node" {
   name            = "otel-node-metrics"
@@ -186,6 +224,11 @@ resource "helm_release" "otel_node" {
   values = [yamlencode({
     mode  = "daemonset"
     image = { repository = "otel/opentelemetry-collector-contrib" }
+
+    resources = {
+      requests = { cpu = "50m", memory = "128Mi" }
+      limits   = { memory = "256Mi" }
+    }
 
     clusterRole = {
       create = true
@@ -221,6 +264,7 @@ resource "helm_release" "otel_node" {
       }
 
       processors = {
+        memory_limiter = local.memory_limiter
         k8sattributes = {
           auth_type   = "serviceAccount"
           passthrough = false
@@ -240,10 +284,16 @@ resource "helm_release" "otel_node" {
       exporters = local.dt_exporter
 
       service = {
+        telemetry = local.self_telemetry
         pipelines = {
           metrics = {
             receivers  = ["kubeletstats"]
-            processors = ["k8sattributes", "cumulativetodelta", "batch"]
+            processors = ["memory_limiter", "k8sattributes", "cumulativetodelta", "batch"]
+            exporters  = ["otlphttp"]
+          }
+          "metrics/self" = {
+            receivers  = ["otlp"] # this collector's own metrics
+            processors = ["memory_limiter", "cumulativetodelta", "batch"]
             exporters  = ["otlphttp"]
           }
         }
@@ -271,15 +321,6 @@ output "debug_obs_pods" {
       waiting  = try([for c in p.status.containerStatuses : c.state.waiting.reason][0], null)
     }
   }
-}
-
-data "kubernetes_resources" "mwh" {
-  api_version = "admissionregistration.k8s.io/v1"
-  kind        = "MutatingWebhookConfiguration"
-}
-
-output "debug_mutating_webhooks" {
-  value = [for w in data.kubernetes_resources.mwh.objects : w.metadata.name]
 }
 
 output "dynatrace_otel_endpoint" {
