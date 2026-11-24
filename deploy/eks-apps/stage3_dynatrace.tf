@@ -188,7 +188,7 @@ resource "helm_release" "otel_tfe" {
       exporters = local.dt_exporter
 
       service = {
-        telemetry = local.self_telemetry
+#        telemetry = local.self_telemetry
         pipelines = {
           metrics = {
             receivers  = ["prometheus", "k8s_cluster"]
@@ -215,9 +215,10 @@ resource "helm_release" "otel_node" {
   name            = "otel-node-metrics"
   repository      = "https://open-telemetry.github.io/opentelemetry-helm-charts"
   chart           = "opentelemetry-collector"
+  version         = "0.183.0"
   namespace       = kubernetes_namespace.dynatrace.metadata[0].name
   wait            = true
-  timeout         = 600
+  timeout         = 300
   atomic          = true
   cleanup_on_fail = true
 
@@ -284,7 +285,7 @@ resource "helm_release" "otel_node" {
       exporters = local.dt_exporter
 
       service = {
-        telemetry = local.self_telemetry
+#        telemetry = local.self_telemetry
         pipelines = {
           metrics = {
             receivers  = ["kubeletstats"]
@@ -310,7 +311,6 @@ data "kubernetes_resources" "obs_pods" {
   kind        = "Pod"
   namespace   = "dynatrace"
 }
-
 output "debug_obs_pods" {
   value = {
     for p in data.kubernetes_resources.obs_pods.objects :
@@ -318,7 +318,8 @@ output "debug_obs_pods" {
       phase    = try(p.status.phase, null)
       ready    = try(alltrue([for c in p.status.containerStatuses : c.ready]), false)
       restarts = try(sum([for c in p.status.containerStatuses : c.restartCount]), 0)
-      waiting  = try([for c in p.status.containerStatuses : c.state.waiting.reason][0], null)
+      waiting  = try([for c in p.status.containerStatuses : "${c.state.waiting.reason}: ${try(c.state.waiting.message, "")}"][0], null)
+      last_term = try([for c in p.status.containerStatuses : "${c.lastState.terminated.reason} exit=${c.lastState.terminated.exitCode} ${try(c.lastState.terminated.message, "")}"][0], null)
     }
   }
 }
