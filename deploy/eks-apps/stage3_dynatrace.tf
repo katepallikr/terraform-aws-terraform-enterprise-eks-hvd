@@ -2,7 +2,7 @@
 # Stage 3 - Observability via OpenTelemetry only
 #   otel_tfe  (Deployment): TFE /metrics scrape, k8s_cluster, agent OTLP
 #   otel_node (DaemonSet):  kubeletstats per node
-#   Both: memory_limiter + self-monitoring
+#   Both: memory_limiter + self-monitoring (scrape of own :8888)
 ############################################
 
 variable "dynatrace_env_url" {
@@ -57,23 +57,11 @@ locals {
     spike_limit_percentage = 25
   }
 
-  # Collector's own metrics -> its own OTLP receiver -> Dynatrace
-  self_telemetry = {
-    metrics = {
-      level   = "detailed"
-      address = null # drop the chart's legacy setting; readers replace it
-      readers = [{
-        periodic = {
-          interval = 30000
-          exporter = {
-            otlp = {
-              protocol = "http/protobuf"
-              endpoint = "http://$${env:MY_POD_IP}:4318"
-            }
-          }
-        }
-      }]
-    }
+  # Collector scrapes its own internal metrics endpoint
+  self_scrape_job = {
+    job_name        = "otelcol-contrib"
+    scrape_interval = "30s"
+    static_configs  = [{ targets = ["$${env:MY_POD_IP}:8888"] }]
   }
 }
 
@@ -84,9 +72,10 @@ resource "helm_release" "otel_tfe" {
   name            = "otel-tfe-metrics"
   repository      = "https://open-telemetry.github.io/opentelemetry-helm-charts"
   chart           = "opentelemetry-collector"
+  version         = "0.183.0"
   namespace       = kubernetes_namespace.dynatrace.metadata[0].name
   wait            = true
-  timeout         = 600
+  timeout         = 300
   atomic          = true
   cleanup_on_fail = true
 
@@ -132,32 +121,35 @@ resource "helm_release" "otel_tfe" {
       receivers = {
         prometheus = {
           config = {
-            scrape_configs = [{
-              job_name        = "terraform-enterprise"
-              scrape_interval = "10s"
-              metrics_path    = "/metrics"
-              params          = { format = ["prometheus"] }
-              kubernetes_sd_configs = [{
-                role       = "pod"
-                namespaces = { names = ["tfe"] }
-              }]
-              relabel_configs = [
-                {
-                  source_labels = ["__meta_kubernetes_pod_container_port_number"]
-                  regex         = "8443"
-                  action        = "keep"
-                },
-                {
-                  source_labels = ["__meta_kubernetes_pod_ip"]
-                  target_label  = "__address__"
-                  replacement   = "$$1:9090"
-                },
-                {
-                  source_labels = ["__meta_kubernetes_pod_name"]
-                  target_label  = "k8s_pod_name"
-                },
-              ]
-            }]
+            scrape_configs = [
+              {
+                job_name        = "terraform-enterprise"
+                scrape_interval = "10s"
+                metrics_path    = "/metrics"
+                params          = { format = ["prometheus"] }
+                kubernetes_sd_configs = [{
+                  role       = "pod"
+                  namespaces = { names = ["tfe"] }
+                }]
+                relabel_configs = [
+                  {
+                    source_labels = ["__meta_kubernetes_pod_container_port_number"]
+                    regex         = "8443"
+                    action        = "keep"
+                  },
+                  {
+                    source_labels = ["__meta_kubernetes_pod_ip"]
+                    target_label  = "__address__"
+                    replacement   = "$$1:9090"
+                  },
+                  {
+                    source_labels = ["__meta_kubernetes_pod_name"]
+                    target_label  = "k8s_pod_name"
+                  },
+                ]
+              },
+              local.self_scrape_job,
+            ]
           }
         }
 
@@ -188,15 +180,14 @@ resource "helm_release" "otel_tfe" {
       exporters = local.dt_exporter
 
       service = {
-#        telemetry = local.self_telemetry
         pipelines = {
           metrics = {
-            receivers  = ["prometheus", "k8s_cluster"]
+            receivers  = ["prometheus", "k8s_cluster"] # TFE /metrics + own :8888 + cluster state
             processors = ["memory_limiter", "cumulativetodelta", "batch"]
             exporters  = ["otlphttp"]
           }
           "metrics/agents" = {
-            receivers  = ["otlp"] # tfc-agents + this collector's own metrics
+            receivers  = ["otlp"] # tfc-agents
             processors = ["memory_limiter", "k8sattributes", "cumulativetodelta", "batch"]
             exporters  = ["otlphttp"]
           }
@@ -262,6 +253,12 @@ resource "helm_release" "otel_node" {
           insecure_skip_verify = true
           metric_groups        = ["node", "pod", "container"]
         }
+
+        prometheus = {
+          config = {
+            scrape_configs = [local.self_scrape_job]
+          }
+        }
       }
 
       processors = {
@@ -285,7 +282,6 @@ resource "helm_release" "otel_node" {
       exporters = local.dt_exporter
 
       service = {
-#        telemetry = local.self_telemetry
         pipelines = {
           metrics = {
             receivers  = ["kubeletstats"]
@@ -293,7 +289,7 @@ resource "helm_release" "otel_node" {
             exporters  = ["otlphttp"]
           }
           "metrics/self" = {
-            receivers  = ["otlp"] # this collector's own metrics
+            receivers  = ["prometheus"] # own :8888
             processors = ["memory_limiter", "cumulativetodelta", "batch"]
             exporters  = ["otlphttp"]
           }
@@ -311,14 +307,15 @@ data "kubernetes_resources" "obs_pods" {
   kind        = "Pod"
   namespace   = "dynatrace"
 }
+
 output "debug_obs_pods" {
   value = {
     for p in data.kubernetes_resources.obs_pods.objects :
     p.metadata.name => {
-      phase    = try(p.status.phase, null)
-      ready    = try(alltrue([for c in p.status.containerStatuses : c.ready]), false)
-      restarts = try(sum([for c in p.status.containerStatuses : c.restartCount]), 0)
-      waiting  = try([for c in p.status.containerStatuses : "${c.state.waiting.reason}: ${try(c.state.waiting.message, "")}"][0], null)
+      phase     = try(p.status.phase, null)
+      ready     = try(alltrue([for c in p.status.containerStatuses : c.ready]), false)
+      restarts  = try(sum([for c in p.status.containerStatuses : c.restartCount]), 0)
+      waiting   = try([for c in p.status.containerStatuses : "${c.state.waiting.reason}: ${try(c.state.waiting.message, "")}"][0], null)
       last_term = try([for c in p.status.containerStatuses : "${c.lastState.terminated.reason} exit=${c.lastState.terminated.exitCode} ${try(c.lastState.terminated.message, "")}"][0], null)
     }
   }
