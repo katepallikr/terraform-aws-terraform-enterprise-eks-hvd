@@ -258,6 +258,15 @@ output "debug_obs_pods" {
   }
 }
 
+data "kubernetes_resources" "mwh" {
+  api_version = "admissionregistration.k8s.io/v1"
+  kind        = "MutatingWebhookConfiguration"
+}
+
+output "debug_mutating_webhooks" {
+  value = [for w in data.kubernetes_resources.mwh.objects : w.metadata.name]
+}
+
 output "dynatrace_otel_endpoint" {
   value = "${var.dynatrace_env_url}/api/v2/otlp"
 }
