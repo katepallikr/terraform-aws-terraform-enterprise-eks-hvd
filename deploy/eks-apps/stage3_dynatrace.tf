@@ -219,7 +219,7 @@ resource "helm_release" "otel_node" {
 
     resources = {
       requests = { cpu = "50m", memory = "128Mi" }
-      limits   = { memory = "256Mi" }
+      limits   = { memory = "512Mi" }
     }
 
     clusterRole = {
