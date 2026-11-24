@@ -17,7 +17,7 @@ variable "dynatrace_data_ingest_token" {
 
 variable "cluster_collector_replicas" {
   type    = number
-  default = 0 # set 0 only for the failure test
+  default = 1 # set 0 only for the failure test
 }
 
 resource "kubernetes_namespace" "dynatrace" {
