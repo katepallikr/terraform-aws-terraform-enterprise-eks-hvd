@@ -17,7 +17,7 @@ variable "dynatrace_data_ingest_token" {
 
 variable "cluster_collector_replicas" {
   type    = number
-  default = 0 # set 0 only for the failure test
+  default = 1 # set 0 only for the failure test
 }
 
 resource "kubernetes_namespace" "dynatrace" {
@@ -76,11 +76,10 @@ resource "helm_release" "otel_tfe" {
   namespace       = kubernetes_namespace.dynatrace.metadata[0].name
   wait            = var.cluster_collector_replicas > 0
   timeout         = 300
-  atomic          = true
+  atomic          = var.cluster_collector_replicas > 0
   cleanup_on_fail = true
 
   values = [yamlencode({
-#    replicaCount = var.cluster_collector_replicas
     image        = { repository = "otel/opentelemetry-collector-contrib" }
     mode         = "deployment"
     replicaCount = max(var.cluster_collector_replicas, 1)
