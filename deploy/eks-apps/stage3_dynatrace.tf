@@ -80,9 +80,11 @@ resource "helm_release" "otel_tfe" {
   cleanup_on_fail = true
 
   values = [yamlencode({
-    mode         = "deployment"
-    replicaCount = var.cluster_collector_replicas
+#    replicaCount = var.cluster_collector_replicas
     image        = { repository = "otel/opentelemetry-collector-contrib" }
+    mode         = "deployment"
+    replicaCount = max(var.cluster_collector_replicas, 1)
+    nodeSelector = var.cluster_collector_replicas == 0 ? { "failure-test" = "no-such-node" } : {}
 
     resources = {
       requests = { cpu = "100m", memory = "256Mi" }
