@@ -85,6 +85,7 @@ resource "helm_release" "otel_tfe" {
     mode         = "deployment"
     replicaCount = max(var.cluster_collector_replicas, 1)
     nodeSelector = var.cluster_collector_replicas == 0 ? { "failure-test" = "no-such-node" } : {}
+    rollout      = { strategy = "Recreate" }
 
     resources = {
       requests = { cpu = "100m", memory = "256Mi" }
