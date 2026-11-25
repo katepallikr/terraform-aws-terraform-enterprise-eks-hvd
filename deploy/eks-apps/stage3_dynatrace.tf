@@ -74,7 +74,7 @@ resource "helm_release" "otel_tfe" {
   chart           = "opentelemetry-collector"
   version         = "0.183.0"
   namespace       = kubernetes_namespace.dynatrace.metadata[0].name
-  wait            = true
+  wait            = var.cluster_collector_replicas > 0
   timeout         = 300
   atomic          = true
   cleanup_on_fail = true
